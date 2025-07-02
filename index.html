@@ -96,7 +96,14 @@
     <input type="text" id="token-input" placeholder="Enter your token" />
     <button onclick="verifyToken()">Submit</button>
     <p id="status" style="color: red;"></p>
-  </div>
+ function verifyToken() {
+  const token = document.getElementById("token-input").value.trim();
+  if (token === "letmein") {  // <-- your free token here
+    // grant access
+  } else {
+    // deny access
+  }
+}
 
   <div id="installer-section">
     <h2>Discord Bot Hosting Web App Tutorial</h2>
