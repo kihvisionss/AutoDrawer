@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secure Installer Access</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/light.css">
+</head>
+<body>
+  <h1>Enter Token to Access</h1>
+  <div id="token-section">
+    <input type="text" id="token-input" placeholder="Enter your token" />
+    <button onclick="verifyToken()">Submit</button>
+    <p id="status" style="color: red;"></p>
+  </div>
+
+  <div id="installer-section" style="display: none;">
+    <h2>Linux App Installation Steps</h2>
+    <ol>
+      <li>Download the installer from <a href="#">this link</a></li>
+      <li>Make it executable: <code>chmod +x installer.sh</code></li>
+      <li>Run it: <code>./installer.sh</code></li>
+      <li>Follow the on-screen instructions.</li>
+    </ol>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
