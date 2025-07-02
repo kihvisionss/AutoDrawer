@@ -81,7 +81,7 @@
       font-size: 0.9em;
     }
 
-    ol {
+    ol, ul {
       padding-left: 20px;
     }
 
@@ -99,14 +99,9 @@
   </div>
 
   <div id="installer-section">
-    <h2>Linux App Installation Steps</h2>
-    <ol>
-      <li>Make the installer script executable:<br><code>chmod +x installer.sh</code></li>
-      <li>Run the installer script:<br><code>./installer.sh</code></li>
-      <li>Follow the on-screen instructions.</li>
-    </ol>
+    <h2>Discord Bot Hosting Web App Tutorial</h2>
 
-    <h3>Tutorial Overview</h3>
+    <h3>Overview</h3>
     <p>You want a web app that:</p>
     <ul>
       <li>Shows a sidebar listing all your bot files</li>
@@ -119,19 +114,25 @@
 
     <h3>Tech Stack Recommendation</h3>
     <ul>
-      <li><b>Frontend:</b> HTML + CSS + JavaScript</li>
-      <li><b>Editor:</b> Monaco Editor or CodeMirror</li>
-      <li><b>Backend:</b> Python Flask (or Node.js/Express)</li>
-      <li><b>File Management:</b> Backend APIs for list/read/write</li>
-      <li><b>Run bot:</b> Backend runs bot.py and streams output with websockets</li>
-      <li><b>Deployment:</b> VPS or cloud (AWS, DigitalOcean, etc.)</li>
+      <li><strong>Frontend:</strong> HTML + CSS + JavaScript</li>
+      <li><strong>Editor:</strong> Monaco Editor or CodeMirror</li>
+      <li><strong>Backend:</strong> Python Flask (or Node.js/Express)</li>
+      <li><strong>File Management:</strong> Backend APIs for listing, reading, writing files</li>
+      <li><strong>Run bot:</strong> Backend runs bot.py and streams output with WebSockets</li>
+      <li><strong>Deployment:</strong> VPS or cloud (AWS, DigitalOcean, etc.)</li>
     </ul>
 
-    <h3>Backend Example (Flask)</h3>
+    <h3>Step 1: Backend Setup (Flask Example)</h3>
+    <p>Install dependencies:</p>
+    <pre><code>pip install flask flask-cors flask-socketio eventlet</code></pre>
+
+    <p>Create <code>app.py</code> with this starter code:</p>
     <pre><code>from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
-import os, subprocess, threading
+import os
+import subprocess
+import threading
 
 app = Flask(__name__, static_folder="frontend")
 CORS(app)
@@ -142,10 +143,90 @@ os.makedirs(PROJECT_DIR, exist_ok=True)
 
 process = None
 
-# ...rest of your Flask app code here...
+@app.route("/files", methods=["GET"])
+def list_files():
+    files = [f for f in os.listdir(PROJECT_DIR) if os.path.isfile(os.path.join(PROJECT_DIR, f))]
+    return jsonify(files)
+
+@app.route("/files/&lt;filename&gt;", methods=["GET"])
+def get_file(filename):
+    filepath = os.path.join(PROJECT_DIR, filename)
+    if not os.path.exists(filepath):
+        return "File not found", 404
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    return jsonify({"content": content})
+
+@app.route("/files/&lt;filename&gt;", methods=["POST"])
+def save_file(filename):
+    data = request.json
+    content = data.get("content", "")
+    filepath = os.path.join(PROJECT_DIR, filename)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(content)
+    return jsonify({"status": "saved"})
+
+@app.route("/files", methods=["POST"])
+def create_file():
+    data = request.json
+    filename = data.get("filename")
+    if not filename:
+        return "Filename required", 400
+    filepath = os.path.join(PROJECT_DIR, filename)
+    if os.path.exists(filepath):
+        return "File exists", 409
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("")
+    return jsonify({"status": "created"})
+
+@socketio.on("run_bot")
+def run_bot(data):
+    global process
+    if process and process.poll() is None:
+        emit("bot_output", "Bot is already running.\n")
+        return
+
+    bot_path = os.path.join(PROJECT_DIR, "bot.py")
+    if not os.path.exists(bot_path):
+        emit("bot_output", "bot.py not found!\n")
+        return
+
+    def target():
+        global process
+        process = subprocess.Popen(
+            ["python3", bot_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        for line in process.stdout:
+            socketio.emit("bot_output", line)
+        process = None
+        socketio.emit("bot_output", "Bot stopped.\n")
+
+    threading.Thread(target=target).start()
+    emit("bot_output", "Bot started...\n")
+
+@socketio.on("stop_bot")
+def stop_bot():
+    global process
+    if process and process.poll() is None:
+        process.terminate()
+        emit("bot_output", "Bot terminated.\n")
+    else:
+        emit("bot_output", "No bot is running.\n")
+
+@app.route("/")
+def serve_frontend():
+    return send_from_directory(app.static_folder, "index.html")
+
+if __name__ == "__main__":
+    socketio.run(app, debug=True)
 </code></pre>
 
-    <h3>Frontend Example (HTML + CodeMirror)</h3>
+    <h3>Step 2: Frontend Setup (index.html)</h3>
+    <p>Put this inside a folder named <code>frontend</code> alongside your <code>app.py</code>:</p>
     <pre><code>&lt;!DOCTYPE html&gt;
 &lt;html lang="en"&gt;
 &lt;head&gt;
@@ -153,23 +234,190 @@ process = None
   &lt;title&gt;Discord Bot Editor&lt;/title&gt;
   &lt;link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.css" /&gt;
   &lt;style&gt;
-    /* Your CSS here */
+    body {
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      font-family: sans-serif;
+    }
+    #sidebar {
+      width: 250px;
+      background: #222;
+      color: white;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    #fileList {
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+    #fileList button {
+      width: 100%;
+      margin: 2px 0;
+      background: #333;
+      color: white;
+      border: none;
+      padding: 8px;
+      text-align: left;
+      cursor: pointer;
+    }
+    #fileList button.active {
+      background: #555;
+    }
+    #editor {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    #code {
+      flex-grow: 1;
+    }
+    #controls {
+      background: #eee;
+      padding: 5px;
+    }
+    #console {
+      height: 150px;
+      background: black;
+      color: white;
+      overflow-y: auto;
+      font-family: monospace;
+      padding: 5px;
+      white-space: pre-wrap;
+    }
   &lt;/style&gt;
 &lt;/head&gt;
 &lt;body&gt;
-  &lt;!-- Your HTML and JS code here --&gt;
+  &lt;div id="sidebar"&gt;
+    &lt;h3&gt;Files&lt;/h3&gt;
+    &lt;div id="fileList"&gt;&lt;/div&gt;
+    &lt;button id="addFileBtn"&gt;+ Add File&lt;/button&gt;
+  &lt;/div&gt;
+  &lt;div id="editor"&gt;
+    &lt;div id="controls"&gt;
+      &lt;button id="saveBtn"&gt;💾 Save&lt;/button&gt;
+      &lt;button id="runBtn"&gt;▶ Run Bot&lt;/button&gt;
+      &lt;button id="stopBtn"&gt;⛔ Stop Bot&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;textarea id="code"&gt;&lt;/textarea&gt;
+    &lt;div id="console"&gt;&lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.js"&gt;&lt;/script&gt;
+  &lt;script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/mode/python/python.min.js"&gt;&lt;/script&gt;
+  &lt;script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"&gt;&lt;/script&gt;
+
+  &lt;script&gt;
+    const socket = io();
+
+    let currentFile = null;
+    const fileListDiv = document.getElementById("fileList");
+    const codeTextarea = document.getElementById("code");
+    const consoleDiv = document.getElementById("console");
+
+    // Initialize CodeMirror editor
+    const editor = CodeMirror.fromTextArea(codeTextarea, {
+      mode: "python",
+      lineNumbers: true,
+      theme: "default",
+    });
+
+    function loadFiles() {
+      fetch("/files")
+        .then(res =&gt; res.json())
+        .then(files =&gt; {
+          fileListDiv.innerHTML = "";
+          files.forEach(file =&gt; {
+            const btn = document.createElement("button");
+            btn.textContent = file;
+            btn.onclick = () =&gt; openFile(file, btn);
+            fileListDiv.appendChild(btn);
+          });
+          if (files.length &gt; 0) {
+            openFile(files[0], fileListDiv.children[0]);
+          }
+        });
+    }
+
+    function openFile(filename, btn) {
+      if (currentFile === filename) return;
+      fetch(`/files/${filename}`)
+        .then(res =&gt; res.json())
+        .then(data =&gt; {
+          editor.setValue(data.content);
+          currentFile = filename;
+          highlightSelected(btn);
+          appendConsole(`Loaded ${filename}\n`);
+        });
+    }
+
+    function highlightSelected(selectedBtn) {
+      [...fileListDiv.children].forEach(btn =&gt; {
+        btn.classList.toggle("active", btn === selectedBtn);
+      });
+    }
+
+    document.getElementById("addFileBtn").onclick = () =&gt; {
+      const filename = prompt("Enter new filename:");
+      if (!filename) return;
+      fetch("/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename }),
+      })
+        .then(res =&gt; {
+          if (res.ok) {
+            loadFiles();
+            appendConsole(`Created new file: ${filename}\n`);
+          } else {
+            alert("Failed to create file. It may already exist.");
+          }
+        });
+    };
+
+    document.getElementById("saveBtn").onclick = () =&gt; {
+      if (!currentFile) return alert("No file open");
+      fetch(`/files/${currentFile}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editor.getValue() }),
+      }).then(() =&gt; {
+        appendConsole(`Saved ${currentFile}\n`);
+      });
+    };
+
+    document.getElementById("runBtn").onclick = () =&gt; {
+      socket.emit("run_bot");
+    };
+
+    document.getElementById("stopBtn").onclick = () =&gt; {
+      socket.emit("stop_bot");
+    };
+
+    socket.on("bot_output", data =&gt; {
+      appendConsole(data);
+    });
+
+    function appendConsole(text) {
+      consoleDiv.textContent += text;
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    loadFiles();
+  &lt;/script&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 </code></pre>
 
-    <h3>Running Your App</h3>
+    <h3>Step 3: Running Your App</h3>
     <ol>
       <li>Start your backend server:<br><code>python app.py</code></li>
       <li>Open <a href="http://localhost:5000" target="_blank">http://localhost:5000</a> in your browser.</li>
       <li>Use the file sidebar, edit code, save files, and run your Discord bot.</li>
     </ol>
 
-    <h3>Creating Your Bot</h3>
+    <h3>Step 4: Create Your Discord Bot</h3>
     <pre><code>import discord
 from discord.ext import commands
 
@@ -189,13 +437,13 @@ async def ping(ctx):
 bot.run("YOUR_BOT_TOKEN")
 </code></pre>
 
-    <p><b>Replace <code>YOUR_BOT_TOKEN</code> with your Discord bot token.</b></p>
+    <p><strong>Remember to replace <code>YOUR_BOT_TOKEN</code> with your actual Discord bot token.</strong></p>
 
     <h3>Notes</h3>
     <ul>
-      <li>The bot runs on your backend machine, not in the browser.</li>
-      <li>Python and dependencies must be installed on the backend.</li>
-      <li>You can improve and secure this basic setup later.</li>
+      <li>This bot runs on your backend server, not in the browser.</li>
+      <li>Make sure you have Python and dependencies installed on your server.</li>
+      <li>Enhance security and features as needed.</li>
     </ul>
   </div>
 
