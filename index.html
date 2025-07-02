@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Secure Installer Access</title>
   <style>
     body {
@@ -15,6 +15,8 @@
       justify-content: center;
       align-items: center;
       flex-direction: column;
+      padding: 20px;
+      box-sizing: border-box;
     }
 
     h1 {
@@ -59,8 +61,28 @@
 
     #installer-section {
       margin-top: 30px;
+      max-width: 800px;
       text-align: left;
-      max-width: 500px;
+      display: none;
+      overflow-y: auto;
+      max-height: 70vh;
+      background-color: #111;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    pre {
+      background: #222;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.9em;
+    }
+
+    ol {
+      padding-left: 20px;
     }
 
     a {
@@ -76,16 +98,124 @@
     <p id="status" style="color: red;"></p>
   </div>
 
-  <div id="installer-section" style="display: none;">
+  <div id="installer-section">
     <h2>Linux App Installation Steps</h2>
     <ol>
-      <li>Download the installer from <a href="#">this link</a></li>
-      <li>Make it executable: <code>chmod +x installer.sh</code></li>
-      <li>Run it: <code>./installer.sh</code></li>
+      <li>Make the installer script executable:<br><code>chmod +x installer.sh</code></li>
+      <li>Run the installer script:<br><code>./installer.sh</code></li>
       <li>Follow the on-screen instructions.</li>
     </ol>
+
+    <h3>Tutorial Overview</h3>
+    <p>You want a web app that:</p>
+    <ul>
+      <li>Shows a sidebar listing all your bot files</li>
+      <li>Lets you add new files</li>
+      <li>Lets you edit files in a code editor</li>
+      <li>Lets you save files</li>
+      <li>Lets you run your Discord bot (server-side) and see console output</li>
+      <li>Works like a mini Replit inside your browser</li>
+    </ul>
+
+    <h3>Tech Stack Recommendation</h3>
+    <ul>
+      <li><b>Frontend:</b> HTML + CSS + JavaScript</li>
+      <li><b>Editor:</b> Monaco Editor or CodeMirror</li>
+      <li><b>Backend:</b> Python Flask (or Node.js/Express)</li>
+      <li><b>File Management:</b> Backend APIs for list/read/write</li>
+      <li><b>Run bot:</b> Backend runs bot.py and streams output with websockets</li>
+      <li><b>Deployment:</b> VPS or cloud (AWS, DigitalOcean, etc.)</li>
+    </ul>
+
+    <h3>Backend Example (Flask)</h3>
+    <pre><code>from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+from flask_socketio import SocketIO, emit
+import os, subprocess, threading
+
+app = Flask(__name__, static_folder="frontend")
+CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+PROJECT_DIR = os.path.abspath("bot_project")
+os.makedirs(PROJECT_DIR, exist_ok=True)
+
+process = None
+
+# ...rest of your Flask app code here...
+</code></pre>
+
+    <h3>Frontend Example (HTML + CodeMirror)</h3>
+    <pre><code>&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+  &lt;meta charset="UTF-8" /&gt;
+  &lt;title&gt;Discord Bot Editor&lt;/title&gt;
+  &lt;link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.css" /&gt;
+  &lt;style&gt;
+    /* Your CSS here */
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;!-- Your HTML and JS code here --&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+
+    <h3>Running Your App</h3>
+    <ol>
+      <li>Start your backend server:<br><code>python app.py</code></li>
+      <li>Open <a href="http://localhost:5000" target="_blank">http://localhost:5000</a> in your browser.</li>
+      <li>Use the file sidebar, edit code, save files, and run your Discord bot.</li>
+    </ol>
+
+    <h3>Creating Your Bot</h3>
+    <pre><code>import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}!")
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send("Pong!")
+
+bot.run("YOUR_BOT_TOKEN")
+</code></pre>
+
+    <p><b>Replace <code>YOUR_BOT_TOKEN</code> with your Discord bot token.</b></p>
+
+    <h3>Notes</h3>
+    <ul>
+      <li>The bot runs on your backend machine, not in the browser.</li>
+      <li>Python and dependencies must be installed on the backend.</li>
+      <li>You can improve and secure this basic setup later.</li>
+    </ul>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    function verifyToken() {
+      const input = document.getElementById("token-input");
+      const status = document.getElementById("status");
+      const installer = document.getElementById("installer-section");
+      const token = input.value.trim();
+
+      // Example simple token check (replace with real logic)
+      if(token === "your-secret-token") {
+        status.textContent = "";
+        installer.style.display = "block";
+        document.getElementById("token-section").style.display = "none";
+      } else {
+        status.textContent = "Invalid token, please try again.";
+        installer.style.display = "none";
+      }
+    }
+  </script>
 </body>
 </html>
